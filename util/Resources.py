@@ -66,7 +66,24 @@ class LplPerformance:
         self.mb_artist = None
         self.disambiguation = None
         self.mb_artists = dict()
-
+        self.media_location = ""
+        
+    def find_file(self, root_dir):
+        performances = os.listdir(root_dir)
+        dir_name = self.artist_credit + " " + self.recorded
+        matches = difflib.get_close_matches(dir_name, performances)
+        self.media_location = os.path.join(root_dir, matches[0]) if len(matches) > 0 else ""
+        
+    def find_videos(self):
+        if self.media_location:
+            file_names = os.listdir(self.media_location)
+            media = []
+            for track in self.videos:
+                matches = difflib.get_close_matches(track.file_name, file_names)
+                if len(matches) > 0:
+                    media.append(os.path.join(self.media_location, track.file_name))
+            print([asciify(i) for i in media])
+        
     def artist_search(self):
         try:
             if self.artist_credit not in self.mb_artists:
@@ -97,7 +114,7 @@ class LplPerformance:
         title_norm = unicodedata.normalize('NFKD', v.video_title).casefold()
         artist_norm = unicodedata.normalize('NFKD', self.artist_credit).casefold()
 
-        print(v.title)
+        print(asciify(v.title))
         for t in self.tracks:
             track_norm = unicodedata.normalize('NFKD', t).casefold()
             if track_norm in title_norm and v.recorded == self.date_recorded:

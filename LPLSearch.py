@@ -7,16 +7,19 @@ import YouTubeApiData
 from util import Resources
 import YoutubeSerializer
 
-es = elasticsearch.Elasticsearch()
 
 
 def main():
+
     parser = argparse.ArgumentParser(description='Get metadata from youtube, musicbrainz, and the LPL to construct a dalet-friendly XML.')
 
     parser.add_argument('output_directory', help="Directory to store output files.")
-    #parser.add_argument('download_directory', help='Directory containing downloaded files.')
+    parser.add_argument('-host', default=None, help="Elasticsearch host (none for Localhost")
+    parser.add_argument('-media', default=None, help="Places to check for media")
+    # parser.add_argument('download_directory', help='Directory containing downloaded files.')
     args = parser.parse_args()
 
+    es = elasticsearch.Elasticsearch(args.host)
     store = os.getcwd()
     output = args.output_directory
     yt_data = YouTubeApiData.VideoData(store)
@@ -86,9 +89,11 @@ def main():
             for v in performance.videos:
                 serializer.save_performance(performance, v)
 
-            print(performance.artist_credit)
-            print(performance.artist_id)
-            print(performance.lpl_item_code)
+            if args.media:
+                performance.find_file(args.media)
+                performance.find_videos()
+            print(Resources.asciify(h['_source']['KEXPTitle']))
+            print("\n")
             # print(v)
 
         response = es.scroll(scroll_id=response['_scroll_id'], scroll='5m')
