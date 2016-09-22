@@ -2,6 +2,9 @@
 
 def load_data(es, index_name, data, data_type, data_mapping=None):
     # create index (ignore 'index already exists' error)
+    if es.indices.exists(index_name):
+        es.indices.delete(index_name)
+    
     es.indices.create(index_name,
                       body=data_mapping)
 

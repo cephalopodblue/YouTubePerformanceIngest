@@ -7,6 +7,7 @@ import YouTubeApiData
 from util import Resources
 import YoutubeSerializer
 import LoadElastic
+import shutil
 
 
 def main():
@@ -23,6 +24,10 @@ def main():
     store = os.getcwd()
     output = args.output_directory
     yt_data = YouTubeApiData.VideoData(store)
+    
+    found_media = os.path.join(output, "media")
+    if not os.path.exists(found_media):
+        os.makedirs(found_media)
 
     serializer = YoutubeSerializer.PerformanceSerializer(output)
 
@@ -116,11 +121,17 @@ def main():
                 if not performance.media_location:
                     additional_fields["no_media"] = True
                 performance.find_videos()
+                    
 
             if performance.artist_id and performance.lpl_item_code:
                 additional_fields["processed"] = True
                 for v in performance.videos:
                     serializer.save_performance(performance, v)
+                    if v.media_location:
+                        i = input("copy media? ")
+                        if i == "y":
+                            copy_to_path = os.path.join(found_media, v.item_code)
+                            shutil.copy(v.media_location, copy_to_path)
 
             if len(additional_fields) > 0:
                 print(additional_fields)

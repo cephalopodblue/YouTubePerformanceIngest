@@ -81,12 +81,16 @@ class LplPerformance:
     def find_videos(self):
         if self.media_location:
             file_names = os.listdir(self.media_location)
+            normalized_file_names = [unicodedata.normalize('NFKD', f).casefold() for f in file_names]
+            normalized_track_names = {unicodedata.normalize('NFKD', t.file_name).casefold(): t for t in self.videos}
             media = []
-            for track in self.videos:
-                matches = difflib.get_close_matches(track.file_name, file_names)
-                if len(matches) > 0:
-                    media.append(os.path.join(self.media_location, track.file_name))
+            for track in normalized_track_names.keys():
+                if track in normalized_file_names:
+                    normalized_track_names[track].media_location = os.path.join(self.media_location, normalized_track_names[track].file_name)
+                    media.append(os.path.join(self.media_location, normalized_track_names[track].file_name))
+            print("Media found for " + asciify(self.artist_credit) + " on " + str(self.date_recorded) + ":")
             print([asciify(i) for i in media])
+            return media
 
     def artist_search(self):
         try:
@@ -213,6 +217,7 @@ class Video:
         self.video_title = snip["title"]
         self.description = snip["description"]
         self.category = ""
+        self.media_location = ""
         if "categoryId" in snip:
             self.category = snip["categoryId"]
         self.published = snip["publishedAt"]
@@ -224,7 +229,7 @@ class Video:
             self.id = video['id']['videoId']
         except TypeError:
             self.id = video["id"]
-        self.item_code = self.id
+        self.youtube_item_code = self.id
         self.url = YOUTUBE_VIDEO_URL + self.id
         self.search_url = YOUTUBE_UPLOADS_SEARCH_URL + self.id
         parsed_title = self.video_title.split(title_artist_dividor)

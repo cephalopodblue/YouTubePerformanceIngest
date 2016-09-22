@@ -75,6 +75,12 @@ class PerformanceSerializer:
                 with tag('Name'):
                     text(name)
                 dist_cat = '_'.join([performance.recorded, performance.artist_credit])
+                
+                with tag("ItemCode"):
+                    text(video.item_code)
+                with tag("Key1"):
+                    text(video.item_code)
+                
                 with tag('KEXPDistributionCategory'):
                     text(dist_cat)
                 with tag('KEXPArtist'):

@@ -35,6 +35,7 @@ lpl_data_map = ("lpl-meta",
                                                             "KEXPTrack18": {"type": "string"},
                                                             "KEXPTrack19": {"type": "string"},
                                                             "KEXPTrack20": {"type": "string"},
+                                                            "KEXPVideoEditStatus": {"type": "string"},
                                                             "needs_artist_id": {"type": "boolean"},
                                                             "needs_itemcode": {"type": "boolean"},
                                                             "media_not_found": {"type": "boolean"},
@@ -64,7 +65,7 @@ def load_lpl_data_xml():
         data[child.find("KEXPLivePerformanceSerialID").text] = performance
 
     es = Elasticsearch(args.host)
-    LoadElastic.load_data(es, "lpl-meta", data, lpl_data_map[0], lpl_data_map[1])
+    LoadElastic.load_data(es, "lpl-data", data, lpl_data_map[0], lpl_data_map[1])
 
 
 if __name__ == "__main__":
