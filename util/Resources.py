@@ -24,10 +24,12 @@ title_artist_dividor = " - "
 
 recording_date_pattern = re.compile("recorded\s*")
 CUTOFF = 0.4
+BROWSE_LIMIT = 100
 ngs.set_useragent("hidat_audio_pipeline", "0.1")
 
 
 __performances__ = dict()
+
 
 class LplPerformance:
     max_tracks = 20
@@ -57,6 +59,8 @@ class LplPerformance:
         self.lpl_item_code = element['ItemCode']
         if 'KEXPArtist' in element:
             self.artist_id = element['KEXPArtist']
+        elif 'searched_artist_id' in element:
+            self.artist_id = element['searched_artist_id']
         self.num_tracks = 0
         if 'KEXPTotalTracks' in element:
             self.num_tracks = int(element['KEXPTotalTracks'])
@@ -83,7 +87,7 @@ class LplPerformance:
                 if len(matches) > 0:
                     media.append(os.path.join(self.media_location, track.file_name))
             print([asciify(i) for i in media])
-        
+
     def artist_search(self):
         try:
             if self.artist_credit not in self.mb_artists:
@@ -91,40 +95,55 @@ class LplPerformance:
                 mb_results = ngs.search_artists(query=query, limit=5)['artist-list']
 
                 if len(mb_results) > 0:
+                    artist = None
                     artists = {a["name"]: a for a in mb_results}
                     a_name = difflib.get_close_matches(self.artist_credit, artists.keys(), cutoff=CUTOFF)[0]
                     if len(artists) < len(mb_results):
                         for a in mb_results:
-                            if a["name"] == a_name:
+                            if a["name"] == a_name and self.mb_artist_recordings_check(a):
                                 artist = a
                                 break
-                    else:
+                    elif self.mb_artist_recordings_check(artists[a_name]):
                         artist = artists[a_name]
-                    self.set_artist(artist)
+
+                    if artist:
+                        self.set_artist(artist)
+                        return True
             else:
                 self.mb_artist = self.mb_artists[self.artist_credit]
                 self.set_artist(self.mb_artist)
+                return True
+            return False
 
         except ngs.NetworkError:
             print('whoooops')
 
-    def add_video(self, video_data):
-        v = Video(video_data)
+    def add_video(self, video_data, date_error=None):
+        vid = Video(video_data)
 
-        title_norm = unicodedata.normalize('NFKD', v.video_title).casefold()
+        # check that the date is probably right - i.e. the date is the same OR the date is wrong,
+        # but close (i.e. off by a year or a month) and there was no performance on that day, so it's probably an error
+
+        if (vid.recorded != self.date_recorded) or ((vid.recorded == (DateParsing.move_date(self.date_recorded, year=-1)
+                             or DateParsing.move_date(self.date_recorded, month=-1)
+                             or DateParsing.move_date(self.date_recorded, month=1)))
+                        and date_error(vid)['hits']['total'] >= 0):
+            return False
+
+        title_norm = unicodedata.normalize('NFKD', vid.video_title).casefold()
         artist_norm = unicodedata.normalize('NFKD', self.artist_credit).casefold()
 
-        print(asciify(v.title))
+        print(asciify(vid.title))
         for t in self.tracks:
             track_norm = unicodedata.normalize('NFKD', t).casefold()
-            if track_norm in title_norm and v.recorded == self.date_recorded:
-                v.performance_title = t
-                self.videos.append(v)
+            if track_norm in title_norm:
+                vid.performance_title = t
+                self.videos.append(vid)
                 return True
-        if v.recorded == self.date_recorded and artist_norm in title_norm:
-            v = FullPerformanceVideo(video_data)
-            v.performance_title = "Full Performance"
-            self.videos.append(v)
+        if artist_norm in title_norm:
+            vid = FullPerformanceVideo(video_data)
+            vid.performance_title = "Full Performance"
+            self.videos.append(vid)
             return True
         return False
 
@@ -161,78 +180,34 @@ class LplPerformance:
     def mb_artist_search(self):
         return self.videos[0].mb_artist_search()
 
+    def mb_artist_recordings_check(self, artist):
+        # check that the artist has this performance's recordings
+        total = 0
+        track_match = set()
+        recordings_result = ngs.browse_recordings(artist["id"],
+                                                  limit=BROWSE_LIMIT)
+        while total < recordings_result["recording-count"]:
+            recordings = [r['title'] for r in recordings_result["recording-list"]]
+            total += len(recordings)
+            for t in self.tracks:
+                matches = difflib.get_close_matches(t, recordings)
+                if len(matches) > 0:
+                    track_match.add(matches[0])
+            recordings_result = ngs.browse_recordings(artist["id"],
+                                                      limit=BROWSE_LIMIT, offset=total)
 
-def get_performance(video):
-    """
-    Get the performance (videos by the same artist recorded on the same day, for now)
-    that the video belongs to.
-    """
-    v = Video(video)
-    if (v.title_artist, v.recorded) in __performances__:
-        __performances__[(v.title_artist, v.recorded)].add_video(v)
-    else:
-        __performances__[(v.title_artist, v.recorded)] = FullPerformance(v)
+        if len(recordings_result) == len(self.tracks):
+            return True
+        else:
+            return False
 
-    return __performances__[(v.title_artist, v.recorded)]
-
-
-# class FullPerformance:
-#     def __init__(self, video):
-#         self.item_code = str(uuid.uuid4())
-#         self.videos = [video]
-#         self.title_artist, self.artist = video.title_artist, video.artist
-#         self.mb_artist = video.mb_artist
-#         self.artist_id = video.artist_id
-#         self.recorded = video.recorded
-#         self.disambiguation = video.disambiguation
-#
-#     def add_video(self, video):
-#         self.videos.append(video)
-#         self.set_artist(self.mb_artist)
-#
-#     def remove_video(self, videos):
-#         videos.sort()
-#         j = 0
-#         removed_videos = []
-#         for i in videos:
-#             i -= j
-#             removed_videos.append(self.videos.pop(i))
-#             j += 1
-#         return removed_videos
-#
-#     def artist_search(self):
-#         self.videos[0].artist_search()
-#         self.set_artist(self.videos[0].mb_artist)
-#
-#     def set_artist_id(self, mbid):
-#         video = self.videos[0]
-#         video.set_artist_id(mbid)
-#         self.artist = video.artist
-#         self.mb_artist = video.mb_artist
-#         self.artist_id = video.artist_id
-#         self.disambiguation = video.disambiguation
-#         for v in self.videos:
-#             v.set_artist(self.mb_artist)
-#
-#     def set_artist(self, artist):
-#         video = self.videos[0]
-#         video.set_artist(artist)
-#         self.mb_artist = video.mb_artist
-#         self.artist = video.artist
-#         self.artist_id = video.artist_id
-#         self.disambiguation = video.disambiguation
-#         for v in self.videos:
-#             v.set_artist(self.mb_artist)
-#
-#     def mb_artist_search(self):
-#         return self.videos[0].mb_artist_search()
 
 class Video:
 
     mb_artists = {}
-    content_type = "KEXP Live Performance Track Video"
 
     def __init__(self, video):
+        self.content_type = "KEXP Live Performance Track Video"
         self.item_code = str(uuid.uuid4())
         snip = video["snippet"]
         self.video_title = snip["title"]

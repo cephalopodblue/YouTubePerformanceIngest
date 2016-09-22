@@ -65,6 +65,11 @@ def synology_date(date):
     return d
 
 
+def move_date(date, year=0, month=0, day=0):
+    d = datetime.datetime(date.year + year, date.month + month, date.day+day)
+    return d
+
+
 def get_date(date_string):
     sep = "".join(separators)
     valid_date = months.copy()
