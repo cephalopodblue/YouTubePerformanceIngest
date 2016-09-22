@@ -48,7 +48,7 @@ class LplPerformance:
 
         self.recorded = element['KEXPDateRecorded']
         if self.recorded is not None:
-            self.date_recorded = DateParsing.get_date(self.recorded)
+            self.date_recorded = DateParsing.get_date(self.recorded)[0]
         else:
             self.date_recorded = " "
 
@@ -76,8 +76,17 @@ class LplPerformance:
         performances = os.listdir(root_dir)
         dir_name = self.artist_credit + " " + self.recorded
         matches = difflib.get_close_matches(dir_name, performances)
-        self.media_location = os.path.join(root_dir, matches[0]) if len(matches) > 0 else ""
-        
+        if __name__ == '__main__':
+            if len(matches) > 0:
+                dates = DateParsing.get_date(matches[0])
+                if dates:
+                    for d in dates:
+                        if d == self.date_recorded:
+                            self.media_location = os.path.join(root_dir, matches[0])
+                else:
+                    # we're just... gonna hope this is right..
+                    self.media_location = os.path.join(root_dir, matches[0])
+
     def find_videos(self):
         if self.media_location:
             file_names = os.listdir(self.media_location)
@@ -128,11 +137,12 @@ class LplPerformance:
         # check that the date is probably right - i.e. the date is the same OR the date is wrong,
         # but close (i.e. off by a year or a month) and there was no performance on that day, so it's probably an error
 
-        if (vid.recorded != self.date_recorded) or ((vid.recorded == (DateParsing.move_date(self.date_recorded, year=-1)
-                             or DateParsing.move_date(self.date_recorded, month=-1)
-                             or DateParsing.move_date(self.date_recorded, month=1)))
-                        and date_error(vid)['hits']['total'] >= 0):
-            return False
+        for d in vid.recorded:
+            if (d != self.date_recorded) and ((d == (DateParsing.move_date(self.date_recorded, year=-1)
+                                 or DateParsing.move_date(self.date_recorded, month=-1)
+                                 or DateParsing.move_date(self.date_recorded, month=1)))
+                            and date_error(vid)['hits']['total'] >= 0):
+                return False
 
         title_norm = unicodedata.normalize('NFKD', vid.video_title).casefold()
         artist_norm = unicodedata.normalize('NFKD', self.artist_credit).casefold()
