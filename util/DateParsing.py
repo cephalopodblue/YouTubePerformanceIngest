@@ -77,28 +77,31 @@ def get_date(date_string):
     valid_date = "|".join(valid_date)
     date = re.search("(" + valid_date + "|\d+)[" + sep + "]+(" + valid_date + "|\d+)[" + sep + "]+(" + valid_date + "|\d+)", date_string)
 
+    possibilities = []
+    
     if date:
         # year-month-day
         year = get_year(date.group(1))
         month = get_month(date.group(2))
         day = get_day(date.group(3))
         if year and month and day:
-            return datetime.datetime(year, month, day)
+            possibilities.append(datetime.datetime(year, month, day))
 
         # day-month-year
         year = get_year(date.group(3))
         month = get_month(date.group(2))
         day = get_day(date.group(1))
         if year and month and day:
-            return datetime.datetime(year, month, day)
+            possibilities.append(datetime.datetime(year, month, day))
 
         # month-day-year
         year = get_year(date.group(3))
         month = get_month(date.group(1))
         day = get_day(date.group(2))
         if year and month and day:
-            return datetime.datetime(year, month, day)
+            possibilities.append(datetime.datetime(year, month, day))
 
+    return possibilities
 
 meta_pattern = re.compile("(?P<name>.+(?=\s+:))\s*:(?P<meta>.+)")
 
