@@ -76,30 +76,43 @@ class LplPerformance:
         performances = os.listdir(root_dir)
         dir_name = self.artist_credit + " " + self.recorded
         matches = difflib.get_close_matches(dir_name, performances)
-        if __name__ == '__main__':
-            if len(matches) > 0:
-                dates = DateParsing.get_date(matches[0])
-                if dates:
-                    for d in dates:
-                        if d == self.date_recorded:
-                            self.media_location = os.path.join(root_dir, matches[0])
-                else:
-                    # we're just... gonna hope this is right..
-                    self.media_location = os.path.join(root_dir, matches[0])
+        if len(matches) > 0:
+            dates = DateParsing.get_date(matches[0])
+            print(dates)
+            print(self.date_recorded)
+            if dates:
+                for d in dates:
+                    if d == self.date_recorded:
+                        self.media_location = os.path.join(root_dir, matches[0])
+            else:
+                # we're just... gonna hope this is right..
+                self.media_location = os.path.join(root_dir, matches[0])
 
     def find_videos(self):
         if self.media_location:
             file_names = os.listdir(self.media_location)
-            normalized_file_names = [unicodedata.normalize('NFKD', f).casefold() for f in file_names]
-            normalized_track_names = {unicodedata.normalize('NFKD', t.file_name).casefold(): t for t in self.videos}
+            media_file_names = [unicodedata.normalize('NFKD', f).casefold() for f in file_names]
+            yt_file_names = {unicodedata.normalize('NFKD', t.file_name).casefold(): t for t in self.videos}
             media = []
-            for track in normalized_track_names.keys():
-                if track in normalized_file_names:
-                    normalized_track_names[track].media_location = os.path.join(self.media_location, normalized_track_names[track].file_name)
-                    media.append(os.path.join(self.media_location, normalized_track_names[track].file_name))
+            
+            # we would most like a filename match
+            
+            for track, video in yt_file_names.items():
+                if track in media_file_names:
+                    video.media_location = os.path.join(self.media_location, video.file_name)
+                    media.append(os.path.join(self.media_location, video.file_name))
+                else:
+                    # if we fail to get a filename match, perhaps b/c some kind person tried to normalize the filenames for us,
+                    # it's possible there is still a match and artist name and title should still be in there
+                    title = unicodedata.normalize('NFKD', video.title).casefold()
+                    artist = unicodedata.normalize('NFKD', self.artist_credit).casefold()
+                    for m in media_file_names:
+                        if title and artist in m:
+                            video.media_location = os.path.join(self.media_location, video.file_name)
+                            media.append(os.path.join(self.media_location, video.file_name))
+                    
             print("Media found for " + asciify(self.artist_credit) + " on " + str(self.date_recorded) + ":")
             print([asciify(i) for i in media])
-            return media
 
     def artist_search(self):
         try:
@@ -130,6 +143,29 @@ class LplPerformance:
 
         except ngs.NetworkError:
             print('whoooops')
+            
+    def correct_video(self, video_data, date_error=None):
+        vid = Video(video_data)
+        # Return true if the given YT video is (probably) part of this performance;
+        # false otherwise
+        for d in vid.recorded:
+            if (d != self.date_recorded) and ((d == (DateParsing.move_date(self.date_recorded, year=-1)
+                                 or DateParsing.move_date(self.date_recorded, month=-1)
+                                 or DateParsing.move_date(self.date_recorded, month=1)))
+                            and date_error(vid)['hits']['total'] >= 0):
+                return False
+
+        title_norm = unicodedata.normalize('NFKD', vid.video_title).casefold()
+        artist_norm = unicodedata.normalize('NFKD', self.artist_credit).casefold()
+
+        for t in self.tracks:
+            track_norm = unicodedata.normalize('NFKD', t).casefold()
+            if track_norm in title_norm:
+                return True
+        if artist_norm in title_norm:
+            vid = FullPerformanceVideo(video_data)
+            return True
+        return False
 
     def add_video(self, video_data, date_error=None):
         vid = Video(video_data)

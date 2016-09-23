@@ -30,6 +30,10 @@ def main():
         os.makedirs(found_media)
 
     serializer = YoutubeSerializer.PerformanceSerializer(output)
+    
+    if not es.indices.exists(index=["yt-meta", "lpl-data"]):
+        print("Required elasticsearch indexes do not exist")
+        return
 
     response = es.search(
         index='lpl-data',
@@ -43,15 +47,6 @@ def main():
         },
         scroll='5m'
     )
-
-    es.indices.create("yt-meta", body={"mappings":
-                                                {"yt-full-meta":
-                                                     {"properties":
-                                                         { "lpl_id": {"type" : "string"} }
-                                                    }
-                                                 }
-                                            },
-                      ignore = [400])
 
     time.sleep(.5)
 
@@ -68,35 +63,27 @@ def main():
                                                            {'lpl_id': index_id}
                                                        }
                                                   }
-                           )
+                           ) 
 
             if yt['hits']['total'] <= 0:
 
                 v = yt_data.full_performance_search(performance)
 
+                video_ids = []
+                
                 if v:
-                    for vid in v:
-                        performance.add_video(vid,  date_error=lambda x: LoadElastic.lpl_yt_search(es=es, video=x))
+                    for video in v:
+                        if performance.correct_video(video,  date_error=lambda x: LoadElastic.lpl_yt_search(es=es, video=x)) \
+                           and 'videoId' in video['id']:
+                            video_ids.append(video["id"]['videoId'])
 
-                    #     performance.add_video(vid)
-                    #     print(vid)
-                    # print("\n")
-                    # print(Resources.asciify(h['_source']['KEXPTitle']))
-                    # i = input("carry on")
-                    # if i == "q":
-                    #     break
-
-                videos = yt_data.get_videos([v.id for v in performance.videos], True)
-
-                for v in videos:
-                    performance.add_video(v, date_error=lambda x: LoadElastic.lpl_yt_search(es=es, video=x))
-                    yt_id = v['id']
-                    v['lpl_id'] = index_id
-                    es.create(index='yt-meta',
-                              body=v,
+                for v_id in video_ids:
+                    full_video_meta = es.get_source(index='yt-meta', id=v_id, doc_type='yt_meta_full')
+                    performance.add_video(full_video_meta, date_error=lambda x: LoadElastic.lpl_yt_search(es=es, video=x))
+                    es.update(index='yt-meta',
+                              body={"doc": {"lpl_id": index_id}},
                               doc_type='yt_meta_full',
-                              id=yt_id,
-                              ignore=[409])
+                              id=v_id)
             else:
                 for video in yt['hits']['hits']:
                     video = video['_source']

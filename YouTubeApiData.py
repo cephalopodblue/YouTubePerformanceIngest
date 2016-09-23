@@ -98,7 +98,7 @@ class VideoData:
 
         return videos
 
-    def next_videos_meta(self, max_results=MAX_RESULTS, all_meta=False):
+    def next_videos_meta(self, max_results=MAX_RESULTS, all_meta=False, meta=None):
 
         if not self.playlist_id:
             # get 'my uploaded videos' ID
@@ -128,20 +128,23 @@ class VideoData:
             ids_response = self.get_ids_request.execute()
             video_ids = [item["contentDetails"]["videoId"] for item in ids_response["items"]]
 
-            videos = self.get_videos(video_ids, all_meta)
+            videos = self.get_videos(video_ids, all_meta, meta)
 
             with open(self.current_results_file, "w+") as f:
                 json.dump({"playlist_id": self.playlist_id, "current_page": self.current_page}, f)
 
             yield videos
 
-            self.current_page = ids_response["nextPageToken"]
+            if "nextPageToken" in ids_response:
+                self.current_page = ids_response["nextPageToken"]
             self.get_ids_request = self.youtube.playlistItems().list_next(self.get_ids_request, ids_response)
 
         raise StopIteration()
 
-    def get_videos(self, ids, all_meta=False):
-        if all_meta:
+    def get_videos(self, ids, all_meta=False, meta=None):
+        if meta:
+            parts = meta
+        elif all_meta:
             parts = self.parts + self.require_auth
         else:
             parts = self.parts

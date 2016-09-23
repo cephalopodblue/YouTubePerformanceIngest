@@ -1,13 +1,22 @@
 
-
-def load_data(es, index_name, data, data_type, data_mapping=None):
-    # create index (ignore 'index already exists' error)
+def create_index(es, index_name, mapping):
+    # create index
     if es.indices.exists(index_name):
         es.indices.delete(index_name)
     
+    
     es.indices.create(index_name,
-                      body=data_mapping)
+                      body={"mappings": mapping})
+                      
 
+def load_doc(es, index_name, data_type, doc, doc_id=None):
+    if doc_id:
+        es.create(index_name, body=doc, id=doc_id, doc_type=data_type)
+    else:
+        es.create(index_name, body=doc, doc_type=data_type)
+
+
+def load_data(es, index_name, data, data_type):
     try:
         for did, item in data.items():
             es.create(index_name, body=item, id=did, doc_type=data_type)
