@@ -108,7 +108,11 @@ def main():
                 if not performance.media_location:
                     additional_fields["no_media"] = True
                 performance.find_videos()
-                    
+                for v in performance.videos:
+                    es.update(index='yt-meta',
+                      body={"doc": {"media_location": v.media_location}},
+                      doc_type='yt_meta_full',
+                      id=v.id)
 
             if performance.artist_id and performance.lpl_item_code:
                 additional_fields["processed"] = True
